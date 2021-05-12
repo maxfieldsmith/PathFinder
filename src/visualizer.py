@@ -1,8 +1,15 @@
 import pygame
 import sys
+import pandas as pd
+
+game_layout = pd.read_csv('src\layouts\/three.csv')
+WALLS = game_layout.iloc[:, :].values
+
 
 BLACK = (0, 0, 0)
 WHITE = (200, 200, 200)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 WINDOW_HEIGHT = 750
@@ -11,10 +18,24 @@ BLOCK_SIZE = 20
 
 GRID_SIZE = (int)(WINDOW_WIDTH / 20)
 
+# GRID is to easily paint display
+# WALLS keeps track of where walls are
 GRID = [[0]*GRID_SIZE]*GRID_SIZE
-WALLS = GRID
 
-print(len(WALLS))
+class Directions:
+    NORTH = 'North'
+    SOUTH = 'South'
+    EAST = 'East'
+    WEST = 'West'
+
+class Actions:
+    _directions = {Directions.NORTH: (0, 1),
+                   Directions.SOUTH: (0, -1),
+                   Directions.EAST:  (1, 0),
+                   Directions.WEST:  (-1, 0)}
+
+    def directionToVector(direction):
+        dx, dy = Actions._directions[direction]
 
 
 def main():
@@ -24,7 +45,6 @@ def main():
     CLOCK = pygame.time.Clock()
     SCREEN.fill(BLACK)
 
-    print(len(GRID))
     while True:
         drawInitalGrid()
         for event in pygame.event.get():
@@ -36,6 +56,10 @@ def main():
 
 
 def drawInitalGrid():
+    start = pygame.Rect(20, 20, BLOCK_SIZE, BLOCK_SIZE)
+    end = pygame.Rect(480, 520, BLOCK_SIZE, BLOCK_SIZE)
+    pygame.draw.rect(SCREEN, BLUE, start)
+    pygame.draw.rect(SCREEN, YELLOW, end)
     
     for x in range(0, WINDOW_WIDTH, BLOCK_SIZE):
         for y in range(0, WINDOW_HEIGHT - 150, BLOCK_SIZE):
@@ -47,9 +71,26 @@ def drawInitalGrid():
                     #pygame.draw.rect(SCREEN, GREEN, rect)
                     pygame.draw.rect(SCREEN, RED, rect)
 
-            
 
-                
+def costHeur():
+    return 1
+
+def generateSuccessors(state):
+    successors = []
+
+    for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
+        x, y = state
+        dx, dy = Actions.directionToVector(action)
+        nextx, nexty = x + dx, y + dy
+        if not WALLS[nextx][nexty] and ((nextx > 0 and nextx < 30) and (nextx > 0 and nextx < 30)):
+            nextState = (nextx, nexty)
+            cost = costHeur(nextState)
+            successors.append( ( nextState, action, cost ) )
+
+    return successors
+
+
+
 
 main()
 
