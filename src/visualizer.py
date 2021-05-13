@@ -15,6 +15,8 @@ GREEN = (0, 255, 0)
 WINDOW_HEIGHT = 750
 WINDOW_WIDTH = 600
 BLOCK_SIZE = 20
+START = (1, 1)
+END = (24, 26)
 
 GRID_SIZE = (int)(WINDOW_WIDTH / 20)
 
@@ -29,13 +31,14 @@ class Directions:
     WEST = 'West'
 
 class Actions:
-    _directions = {Directions.NORTH: (0, 1),
-                   Directions.SOUTH: (0, -1),
+    _directions = {Directions.NORTH: (0, -1),
+                   Directions.SOUTH: (0, 1),
                    Directions.EAST:  (1, 0),
                    Directions.WEST:  (-1, 0)}
 
     def directionToVector(direction):
         dx, dy = Actions._directions[direction]
+        return dx, dy
 
 
 def main():
@@ -44,6 +47,8 @@ def main():
     SCREEN = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     CLOCK = pygame.time.Clock()
     SCREEN.fill(BLACK)
+
+    print(depthFirstSearch())
 
     while True:
         drawInitalGrid()
@@ -71,18 +76,23 @@ def drawInitalGrid():
                     #pygame.draw.rect(SCREEN, GREEN, rect)
                     pygame.draw.rect(SCREEN, RED, rect)
 
+def getStartState():
+    return START
 
-def costHeur():
+def isGoalState(state):
+    return state == END
+
+def costHeur(state):
     return 1
 
-def generateSuccessors(state):
+def getSuccessors(state):
     successors = []
 
     for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
         x, y = state
         dx, dy = Actions.directionToVector(action)
         nextx, nexty = x + dx, y + dy
-        if not WALLS[nextx][nexty] and ((nextx > 0 and nextx < 30) and (nextx > 0 and nextx < 30)):
+        if not WALLS[nextx][nexty] == 'X' and ((nextx > 0 and nextx < 28) and (nexty > 0 and nexty < 28)):
             nextState = (nextx, nexty)
             cost = costHeur(nextState)
             successors.append( ( nextState, action, cost ) )
@@ -90,6 +100,48 @@ def generateSuccessors(state):
     return successors
 
 
+def depthFirstSearch():
+    # get start node
+    start_node = getStartState()
+
+    # check if the start node is the goal node; if yes no action done
+    if isGoalState(start_node):
+        return []
+
+    # create new stack for nodes
+    node_stack = []
+
+    # create list to save already visited nodes
+    visited_nodes = []
+
+    # push the start node onto the stack
+    node_stack.append((start_node, []))
+
+    # start loop to start DFS on given graph
+    while True:
+        # check if the stack is empty; if yes then return no action
+        if len(node_stack) == 0:
+            return []
+
+        # store the node at the top of the stack and the path associated
+        current_node, found_path = node_stack.pop(-1)
+
+        # store the current node in the list of visited nodes
+        visited_nodes.append(current_node)
+
+        # check if the current node is the goal node; if yes return the path
+        if isGoalState(current_node):
+            return found_path
+
+        # get the children of the current node for traversal of the graph
+        successor_node = getSuccessors(current_node)
+
+        # search the children of current node
+        for node in successor_node:
+            # check if child node is in visited; if not then add to the top of the stack
+            if node[0] not in visited_nodes:
+                new_path = found_path + [node[1]]
+                node_stack.append((node[0], new_path))
 
 
 main()
