@@ -46,7 +46,8 @@ options = [
     "Depth First Search",
     "Breadth First Search",
     "Dijkstras",
-    "A* Search"
+    "A* Search Euclidean",
+    "A* Search Manhattan"
 ]
 
 class Directions:
@@ -144,10 +145,13 @@ def sortHelper(algorithm):
         path, visited = aStarSearch(nullHeuristic)
         return path, visited
 
-    if (algorithm == "A* Search"):
+    if (algorithm == "A* Search Euclidean"):
         path, visited = aStarSearch(euclideanHeuristic)
         return path, visited
 
+    if (algorithm == "A* Search Manhattan"):
+        path, visited = aStarSearch()
+        return path, visited
 
 
 
@@ -188,8 +192,6 @@ def main():
 
     drawInitalGrid()
     pygame.display.update()
-    
-    print(var.get())
 
     path, visited = sortHelper(clicked.get())
 
@@ -268,7 +270,6 @@ def getSuccessors(state):
         dx, dy = Actions.directionToVector(action)
         nextx, nexty = x + dx, y + dy
         if ((not WALLS[nexty][nextx] == 'X') and ((nextx > -1 and nextx < 29) and (nexty > -1 and nexty < 29))):
-            if (nextx == 29): print ("whta")
             nextState = (nextx, nexty)
             cost = costHeur(nextState)
             successors.append( ( nextState, action, cost ) )
