@@ -2,7 +2,7 @@ import pygame
 import sys
 import pandas as pd
 
-game_layout = pd.read_csv('src\layouts\/three.csv')
+game_layout = pd.read_csv('src\layouts\/two.csv')
 WALLS = game_layout.iloc[:, :].values
 
 
@@ -12,11 +12,11 @@ BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
-WINDOW_HEIGHT = 750
+WINDOW_HEIGHT = 600
 WINDOW_WIDTH = 600
 BLOCK_SIZE = 20
 START = (1, 1)
-END = (24, 26)
+END = (26, 3)
 
 GRID_SIZE = (int)(WINDOW_WIDTH / 20)
 
@@ -40,6 +40,34 @@ class Actions:
         dx, dy = Actions._directions[direction]
         return dx, dy
 
+class Queue:
+    "A container with a first-in-first-out (FIFO) queuing policy."
+    def __init__(self):
+        self.list = []
+
+    def push(self,item):
+        "Enqueue the 'item' into the queue"
+        self.list.insert(0,item)
+
+    def pop(self):
+        """
+          Dequeue the earliest enqueued item still in the queue. This
+          operation removes the item from the queue.
+        """
+        return self.list.pop()
+
+    def isEmpty(self):
+        "Returns true if the queue is empty"
+        return len(self.list) == 0
+
+def drawPath(path, sort):
+    color = GREEN if sort == 0 else BLUE
+
+    for node in path:
+        show = pygame.Rect(node[0] * 20, node[1] * 20, BLOCK_SIZE - 2, BLOCK_SIZE - 2)
+        pygame.draw.rect(SCREEN, color, show)
+        CLOCK.tick(45)
+        pygame.display.update()
 
 def main():
     global SCREEN, CLOCK
@@ -48,10 +76,15 @@ def main():
     CLOCK = pygame.time.Clock()
     SCREEN.fill(BLACK)
 
-    print(depthFirstSearch())
+    drawInitalGrid()
+    pygame.display.update()
+    path = depthFirstSearch()    
+    drawPath(path, 0)
+
+    path = breadthFirstSearch()
+    drawPath(path, 1)
 
     while True:
-        drawInitalGrid()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -61,26 +94,28 @@ def main():
 
 
 def drawInitalGrid():
-    start = pygame.Rect(20, 20, BLOCK_SIZE, BLOCK_SIZE)
-    end = pygame.Rect(480, 520, BLOCK_SIZE, BLOCK_SIZE)
+    startx, starty = START
+    endx, endy = END
+    start = pygame.Rect(startx * 20, starty * 20, BLOCK_SIZE, BLOCK_SIZE)
+    end = pygame.Rect(endx * 20, endy * 20, BLOCK_SIZE, BLOCK_SIZE)
     pygame.draw.rect(SCREEN, BLUE, start)
     pygame.draw.rect(SCREEN, YELLOW, end)
-    
+
     for x in range(0, WINDOW_WIDTH, BLOCK_SIZE):
-        for y in range(0, WINDOW_HEIGHT - 150, BLOCK_SIZE):
+        for y in range(0, WINDOW_HEIGHT, BLOCK_SIZE):
             rect = pygame.Rect(x, y, BLOCK_SIZE, BLOCK_SIZE)
             pygame.draw.rect(SCREEN, WHITE, rect, 1)
-            #bord = pygame.Rect(x, y, blockSize, blockSize)
             if (((x / BLOCK_SIZE) + 1 < len(WALLS)) and ((y / BLOCK_SIZE) + 1 < len(WALLS))):
                 if (WALLS[(int)(y / BLOCK_SIZE)][(int)(x / BLOCK_SIZE)] == 'X'):
-                    #pygame.draw.rect(SCREEN, GREEN, rect)
                     pygame.draw.rect(SCREEN, RED, rect)
 
 def getStartState():
     return START
 
 def isGoalState(state):
-    return state == END
+    endx, endy = END
+    statex, statey = state
+    return (endx == statex and endy == statey)
 
 def costHeur(state):
     return 1
@@ -92,7 +127,7 @@ def getSuccessors(state):
         x, y = state
         dx, dy = Actions.directionToVector(action)
         nextx, nexty = x + dx, y + dy
-        if not WALLS[nextx][nexty] == 'X' and ((nextx > 0 and nextx < 28) and (nexty > 0 and nexty < 28)):
+        if ((not WALLS[nexty][nextx] == 'X') and ((nextx > 0 and nextx < 28) and (nexty > 0 and nexty < 28))):
             nextState = (nextx, nexty)
             cost = costHeur(nextState)
             successors.append( ( nextState, action, cost ) )
@@ -115,7 +150,7 @@ def depthFirstSearch():
     visited_nodes = []
 
     # push the start node onto the stack
-    node_stack.append((start_node, []))
+    node_stack.append((start_node, [], []))
 
     # start loop to start DFS on given graph
     while True:
@@ -124,14 +159,14 @@ def depthFirstSearch():
             return []
 
         # store the node at the top of the stack and the path associated
-        current_node, found_path = node_stack.pop(-1)
+        current_node, found_path, draw_path = node_stack.pop(-1)
 
         # store the current node in the list of visited nodes
         visited_nodes.append(current_node)
 
         # check if the current node is the goal node; if yes return the path
         if isGoalState(current_node):
-            return found_path
+            return draw_path
 
         # get the children of the current node for traversal of the graph
         successor_node = getSuccessors(current_node)
@@ -141,8 +176,53 @@ def depthFirstSearch():
             # check if child node is in visited; if not then add to the top of the stack
             if node[0] not in visited_nodes:
                 new_path = found_path + [node[1]]
-                node_stack.append((node[0], new_path))
+                new_draw = draw_path + [node[0]]
+                node_stack.append((node[0], new_path, new_draw))
 
+def breadthFirstSearch():
+    # get the start node state
+    start_node = getStartState()
+
+    # check if the start node state is the goal node state
+    # if yes return no action
+    if isGoalState(start_node):
+        return []
+
+    # create a queue data structure to use for traversal
+    node_queue = Queue()
+
+    # create set to store visited nodes
+    visited_nodes = []
+
+    # push the start node onto the queue
+    node_queue.push((start_node, [], []))
+
+    # start loop to determine BFS of graph
+    while True:
+        # check if the queue is empty; if yes return no action
+        if node_queue.isEmpty():
+            return []
+
+        # get the node at the front of the queue and the path associated with it
+        current_node, found_path, draw_path = node_queue.pop()
+
+        # store the current node in the list of visited nodes
+        visited_nodes.append(current_node)
+
+        # check if the current node is a goal node; if yes then return the path
+        if isGoalState(current_node):
+            return draw_path
+
+        # get the children of the current node to traverse further into the tree
+        successor_node = getSuccessors(current_node)
+
+        # search the child nodes
+        for node in successor_node:
+            # check if child is not in visited or frontier
+            if node[0] not in visited_nodes and node[0] not in (frontier[0] for frontier in node_queue.list):                                      
+                new_path = found_path + [node[1]]
+                new_draw = draw_path + [node[0]]
+                node_queue.push((node[0], new_path, new_draw))
 
 main()
 
