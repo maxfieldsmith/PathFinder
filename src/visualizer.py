@@ -1,9 +1,27 @@
 import pygame
 import sys
 import pandas as pd
+import heapq
+from tkinter import *
+from tkinter import ttk
+import random
+
+get_walls = random.randint(1, 4)
 
 game_layout = pd.read_csv('src\layouts\/two.csv')
+
+if get_walls == 1:
+    game_layout = pd.read_csv('src\layouts\one.csv')
+
+if get_walls == 3:
+    game_layout = pd.read_csv('src\layouts\/three.csv')
+
+if get_walls == 4:
+    game_layout = pd.read_csv('src\layouts\/four.csv')
+
 WALLS = game_layout.iloc[:, :].values
+
+sortAlgorithm = ""
 
 
 BLACK = (0, 0, 0)
@@ -15,14 +33,21 @@ GREEN = (0, 255, 0)
 WINDOW_HEIGHT = 600
 WINDOW_WIDTH = 600
 BLOCK_SIZE = 20
-START = (1, 1)
-END = (26, 3)
+START = (23, 26)
+END = (6, 16)
 
 GRID_SIZE = (int)(WINDOW_WIDTH / 20)
 
 # GRID is to easily paint display
 # WALLS keeps track of where walls are
 GRID = [[0]*GRID_SIZE]*GRID_SIZE
+
+options = [
+    "Depth First Search",
+    "Breadth First Search",
+    "Dijkstras",
+    "A* Search"
+]
 
 class Directions:
     NORTH = 'North'
@@ -60,14 +85,99 @@ class Queue:
         "Returns true if the queue is empty"
         return len(self.list) == 0
 
-def drawPath(path, sort):
-    color = GREEN if sort == 0 else BLUE
+class PriorityQueue:
+    def  __init__(self):
+        self.heap = []
+        self.count = 0
 
+    def push(self, item, priority):
+        entry = (priority, self.count, item)
+        heapq.heappush(self.heap, entry)
+        self.count += 1
+
+    def pop(self):
+        (_, _, item) = heapq.heappop(self.heap)
+        return item
+
+    def isEmpty(self):
+        return len(self.heap) == 0
+
+    def update(self, item, priority):
+        # If item already in priority queue with higher priority, update its priority and rebuild the heap.
+        # If item already in priority queue with equal or lower priority, do nothing.
+        # If item not in priority queue, do the same thing as self.push.
+        for index, (p, c, i) in enumerate(self.heap):
+            if i == item:
+                if p <= priority:
+                    break
+                del self.heap[index]
+                self.heap.append((priority, c, item))
+                heapq.heapify(self.heap)
+                break
+        else:
+            self.push(item, priority)
+
+def drawPath(path, visited, show):
+    if (show):
+        for node in visited:
+            show = pygame.Rect(node[0] * 20, node[1] * 20, BLOCK_SIZE - 2, BLOCK_SIZE - 2)
+            pygame.draw.rect(SCREEN, WHITE, show)
+            CLOCK.tick(45)
+            pygame.display.update()
+    
     for node in path:
-        show = pygame.Rect(node[0] * 20, node[1] * 20, BLOCK_SIZE - 2, BLOCK_SIZE - 2)
-        pygame.draw.rect(SCREEN, color, show)
-        CLOCK.tick(45)
-        pygame.display.update()
+            show = pygame.Rect(node[0] * 20, node[1] * 20, BLOCK_SIZE - 2, BLOCK_SIZE - 2)
+            pygame.draw.rect(SCREEN, GREEN, show)
+            CLOCK.tick(45)
+            pygame.display.update()
+
+def sortHelper(algorithm):
+    if (algorithm == "Depth First Search"):
+        path, visited = depthFirstSearch()
+        return path, visited
+    
+    if (algorithm == "Breadth First Search"):
+        path, visited = breadthFirstSearch()
+        return path, visited
+
+    if (algorithm == "Dijkstras"):
+        path, visited = aStarSearch(nullHeuristic)
+        return path, visited
+
+    if (algorithm == "A* Search"):
+        path, visited = aStarSearch(euclideanHeuristic)
+        return path, visited
+
+
+
+
+def onSubmit():
+    sortAlgorithm = clicked.get()
+    window.quit()
+    window.destroy()
+
+
+def show():
+    label.config( text= clicked.get() )
+
+window = Tk()
+clicked = StringVar()
+clicked.set( "Depth First Search" )
+label = Label(window, text='Choose Algorithm: ')
+sortBox = OptionMenu( window, clicked, *options )
+var = IntVar()
+showVisited = ttk.Checkbutton(window, text='Show Steps :', onvalue=1, offvalue=0, variable=var)
+
+submit = Button(window, text='Submit', command=onSubmit)
+
+showVisited.grid(columnspan=2, row=2)
+submit.grid(columnspan=2, row=3)
+sortBox.grid(row=0, column=1, pady=3)
+label.grid(row=0, pady=3)
+
+window.update()
+mainloop()
+
 
 def main():
     global SCREEN, CLOCK
@@ -78,12 +188,13 @@ def main():
 
     drawInitalGrid()
     pygame.display.update()
-    path = depthFirstSearch()    
-    drawPath(path, 0)
+    
+    print(var.get())
 
-    path = breadthFirstSearch()
-    drawPath(path, 1)
+    path, visited = sortHelper(clicked.get())
 
+    drawPath(path, visited, var.get())
+    
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -117,6 +228,35 @@ def isGoalState(state):
     statex, statey = state
     return (endx == statex and endy == statey)
 
+def getCostOfActions(actions):
+    if actions == None: return 99999
+    x, y = START
+    cost = 0
+    for action in actions:
+        dx, dy = Actions.directionToVector(action)
+        nextx, nexty = (int)(x + dx), (int)(y + dy)
+        if ((WALLS[nexty][nextx] == 'X') and ((nextx > -1 and nextx < 29) and (nexty > -1 and nexty < 29))): return 99999
+        cost += 1
+    
+    return cost
+
+
+def calculateHeuristic(state, end, heuristic):
+    return getCostOfActions(state[1]) + heuristic(state[0], END)    
+
+def nullHeuristic(state, goalState):
+    return 0
+
+def euclideanHeuristic(state, goalState):
+    statex, statey = state
+    endx, endy = goalState
+    return ( (statex - endx) ** 2 + (statey - endy) ** 2 ) ** 0.5
+
+def manhattanHeuristic(state, goalState):
+    statex, statey = state
+    endx, endy = goalState
+    return abs(statex - endx) + abs(statey - endy)
+
 def costHeur(state):
     return 1
 
@@ -127,7 +267,8 @@ def getSuccessors(state):
         x, y = state
         dx, dy = Actions.directionToVector(action)
         nextx, nexty = x + dx, y + dy
-        if ((not WALLS[nexty][nextx] == 'X') and ((nextx > 0 and nextx < 28) and (nexty > 0 and nexty < 28))):
+        if ((not WALLS[nexty][nextx] == 'X') and ((nextx > -1 and nextx < 29) and (nexty > -1 and nexty < 29))):
+            if (nextx == 29): print ("whta")
             nextState = (nextx, nexty)
             cost = costHeur(nextState)
             successors.append( ( nextState, action, cost ) )
@@ -166,7 +307,7 @@ def depthFirstSearch():
 
         # check if the current node is the goal node; if yes return the path
         if isGoalState(current_node):
-            return draw_path
+            return draw_path, visited_nodes
 
         # get the children of the current node for traversal of the graph
         successor_node = getSuccessors(current_node)
@@ -211,7 +352,7 @@ def breadthFirstSearch():
 
         # check if the current node is a goal node; if yes then return the path
         if isGoalState(current_node):
-            return draw_path
+            return draw_path, visited_nodes
 
         # get the children of the current node to traverse further into the tree
         successor_node = getSuccessors(current_node)
@@ -224,62 +365,47 @@ def breadthFirstSearch():
                 new_draw = draw_path + [node[0]]
                 node_queue.push((node[0], new_path, new_draw))
 
+def aStarSearch(heuristic=manhattanHeuristic):
+    start_node = getStartState()
+
+    if isGoalState(start_node):
+        return []
+
+    open_priority_queue = PriorityQueue()
+
+    closed_list = []
+
+    open_priority_queue.push((start_node, [], []), calculateHeuristic((start_node, [], []), END, heuristic))
+
+
+    while True:
+        if open_priority_queue.isEmpty():
+            return []
+
+        current_node, current_path, draw_path = open_priority_queue.pop()
+
+        if isGoalState(current_node):
+            return draw_path, closed_list
+
+        closed_list.append(current_node)
+
+        for children in getSuccessors(current_node):
+            if children[0] not in closed_list:
+                if (children[0] not in (frontier[2][0] for frontier in open_priority_queue.heap)):
+                    new_path = current_path + [children[1]]
+                    new_draw = draw_path + [children[0]]
+                    new_cost = calculateHeuristic((children[0], new_path, new_draw), END , heuristic)
+                    open_priority_queue.push((children[0], new_path, new_draw), new_cost)
+                else:
+                    for frontier in open_priority_queue.heap:
+                        if frontier[2][0] == children[0]:
+                            old_cost = getCostOfActions(frontier[2][1])
+
+                    new_path = current_path + [children[1]]
+                    new_draw = draw_path + [children[0]]
+                    new_cost = calculateHeuristic((children[0], new_path, new_draw), END, heuristic)
+
+                    if old_cost > new_cost:
+                        open_priority_queue.update((children[0], new_path, new_draw), new_cost)
+
 main()
-
-#####################################################
-#               CHOOSE ALGORITHM TYPE
-#####################################################
-##
-## button = pygame.Rect(100, 100, 50, 50)
-##
-## ...
-##
-## if event.type == pygame.MOUSEBUTTONDOWN:
-##     mouse_pos = event.pos  # gets mouse position
-##
-##     # checks if mouse position is over the button
-##     if button.collidepoint(mouse_pos):
-##         # prints current location of mouse
-##         print('button was pressed at {0}'.format(mouse_pos))
-##
-#####################################################
-
-
-#####################################################
-#                   getStartState()
-#####################################################
-##
-## Start: (0, 0)
-## getSuccessors: [((0, 20), 'SOUTH', 1), ((20, 0), 'WEST', 1)]
-##
-## def getSuccessors(self, state):
-##     """
-##     Returns successor states, the actions they require, and a cost of 1.
-##
-##         As noted in search.py:
-##             For a given state, this should return a list of triples,
-##         (successor, action, stepCost), where 'successor' is a
-##         successor to the current state, 'action' is the action
-##         required to get there, and 'stepCost' is the incremental
-##         cost of expanding to that successor
-##     """
-##
-##     successors = []
-##     for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
-##         x,y = state
-##         dx, dy = Actions.directionToVector(action)
-##         nextx, nexty = int(x + dx), int(y + dy)
-##         if not self.walls[nextx][nexty]:
-##             nextState = (nextx, nexty)
-##             cost = self.costFn(nextState)
-##             successors.append( ( nextState, action, cost) )
-##
-##     # Bookkeeping for display purposes
-##     self._expanded += 1 # DO NOT CHANGE
-##     if state not in self._visited:
-##         self._visited[state] = True
-##         self._visitedlist.append(state)
-##
-##     return successors
-##
-#####################################################
