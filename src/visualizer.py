@@ -6,7 +6,7 @@ from tkinter import *
 from tkinter import ttk
 import random
 
-get_walls = random.randint(1, 4)
+get_walls = random.randint(1, 5)
 
 game_layout = pd.read_csv('src\layouts\/two.csv')
 
@@ -19,10 +19,10 @@ if get_walls == 3:
 if get_walls == 4:
     game_layout = pd.read_csv('src\layouts\/four.csv')
 
+if get_walls == 5:
+    game_layout = pd.read_csv('src\layouts\/five.csv')
+
 WALLS = game_layout.iloc[:, :].values
-
-sortAlgorithm = ""
-
 
 BLACK = (0, 0, 0)
 WHITE = (200, 200, 200)
@@ -34,13 +34,8 @@ WINDOW_HEIGHT = 600
 WINDOW_WIDTH = 600
 BLOCK_SIZE = 20
 START = (23, 26)
-END = (6, 16)
+END = (6, 14)
 
-GRID_SIZE = (int)(WINDOW_WIDTH / 20)
-
-# GRID is to easily paint display
-# WALLS keeps track of where walls are
-GRID = [[0]*GRID_SIZE]*GRID_SIZE
 
 options = [
     "Depth First Search",
@@ -67,23 +62,16 @@ class Actions:
         return dx, dy
 
 class Queue:
-    "A container with a first-in-first-out (FIFO) queuing policy."
     def __init__(self):
         self.list = []
 
     def push(self,item):
-        "Enqueue the 'item' into the queue"
         self.list.insert(0,item)
 
     def pop(self):
-        """
-          Dequeue the earliest enqueued item still in the queue. This
-          operation removes the item from the queue.
-        """
         return self.list.pop()
 
     def isEmpty(self):
-        "Returns true if the queue is empty"
         return len(self.list) == 0
 
 class PriorityQueue:
@@ -104,9 +92,6 @@ class PriorityQueue:
         return len(self.heap) == 0
 
     def update(self, item, priority):
-        # If item already in priority queue with higher priority, update its priority and rebuild the heap.
-        # If item already in priority queue with equal or lower priority, do nothing.
-        # If item not in priority queue, do the same thing as self.push.
         for index, (p, c, i) in enumerate(self.heap):
             if i == item:
                 if p <= priority:
@@ -119,13 +104,14 @@ class PriorityQueue:
             self.push(item, priority)
 
 def drawPath(path, visited, show):
+    # draw nodes as they are explored if 'Show path' box was checked
     if (show):
         for node in visited:
             show = pygame.Rect(node[0] * 20, node[1] * 20, BLOCK_SIZE - 2, BLOCK_SIZE - 2)
             pygame.draw.rect(SCREEN, WHITE, show)
             CLOCK.tick(45)
             pygame.display.update()
-    
+    # draw final path returned by the selected algorithm
     for node in path:
             show = pygame.Rect(node[0] * 20, node[1] * 20, BLOCK_SIZE - 2, BLOCK_SIZE - 2)
             pygame.draw.rect(SCREEN, GREEN, show)
@@ -133,6 +119,7 @@ def drawPath(path, visited, show):
             pygame.display.update()
 
 def sortHelper(algorithm):
+    "Helper method to use desired search algorithm"
     if (algorithm == "Depth First Search"):
         path, visited = depthFirstSearch()
         return path, visited
@@ -153,8 +140,13 @@ def sortHelper(algorithm):
         path, visited = aStarSearch()
         return path, visited
 
+"""
+This section is the pop up window at the start of the program.
+Allows the user to choose which algorithm they want to see and
+if they choose to see the explored nodes.
+"""
 
-
+sortAlgorithm = ""
 def onSubmit():
     sortAlgorithm = clicked.get()
     window.quit()
@@ -197,6 +189,7 @@ def main():
 
     drawPath(path, visited, var.get())
     
+    # this loop is used to check if 'X' is closed on the window if so then quit program
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -205,7 +198,9 @@ def main():
 
         pygame.display.update()
 
-
+"""
+Method to draw initial grid with walls (no paths or nodes have been created/explored
+"""
 def drawInitalGrid():
     startx, starty = START
     endx, endy = END
@@ -217,9 +212,11 @@ def drawInitalGrid():
     for x in range(0, WINDOW_WIDTH, BLOCK_SIZE):
         for y in range(0, WINDOW_HEIGHT, BLOCK_SIZE):
             rect = pygame.Rect(x, y, BLOCK_SIZE, BLOCK_SIZE)
+            # draw grid
             pygame.draw.rect(SCREEN, WHITE, rect, 1)
-            if (((x / BLOCK_SIZE) + 1 < len(WALLS)) and ((y / BLOCK_SIZE) + 1 < len(WALLS))):
-                if (WALLS[(int)(y / BLOCK_SIZE)][(int)(x / BLOCK_SIZE)] == 'X'):
+            if (((x // BLOCK_SIZE) < len(WALLS)) and ((y // BLOCK_SIZE) < len(WALLS))):
+                if (WALLS[(int)(y // BLOCK_SIZE)][(int)(x // BLOCK_SIZE)] == 'X'):
+                    # draw wall
                     pygame.draw.rect(SCREEN, RED, rect)
 
 def getStartState():
@@ -262,6 +259,16 @@ def manhattanHeuristic(state, goalState):
 def costHeur(state):
     return 1
 
+"""
+Method to return the nodes that are neighbors to the current node
+Along with the direction that neighbor is in and the cost it takes to 
+get there.
+
+returns a list of successors
+Example: 
+startState = (0, 0)
+getSuccessors(startState) = [((0, 1), 'South', 1), ((1, 0), 'East', 1)]
+"""
 def getSuccessors(state):
     successors = []
 
@@ -276,7 +283,18 @@ def getSuccessors(state):
 
     return successors
 
+"""
+Depth First Search
+    Makes use of a stack to arrange the order in which the nodes are expanded. Once a node 
+    has been fully explored the next node is popped from the top of the stack (LIFO) and then that
+    node is expanded.
 
+This search is particularly bad for this problem because there are not instances in which the
+node is fully explored. If the two start and end nodes are in opposite corners the function will
+search every node before it finds the last (end) node.
+
+If the layouts were a maze it would perform better.
+"""
 def depthFirstSearch():
     # get start node
     start_node = getStartState()
@@ -321,6 +339,15 @@ def depthFirstSearch():
                 new_draw = draw_path + [node[0]]
                 node_stack.append((node[0], new_path, new_draw))
 
+"""
+Breadth First Search
+    Makes use of a queue to arrange the order in which the nodes are expanded. A node is popped
+    from the start of the queue (FIFO) and checked if it is the end goal. Then its successors are
+    added to the end of the queue.
+
+This search performs okay but if the graph was bigger this would be very ineffient since it sweeps
+layer by layer to check if current node is end node.
+"""
 def breadthFirstSearch():
     # get the start node state
     start_node = getStartState()
@@ -365,47 +392,82 @@ def breadthFirstSearch():
                 new_path = found_path + [node[1]]
                 new_draw = draw_path + [node[0]]
                 node_queue.push((node[0], new_path, new_draw))
+        
+"""
+Great explaination of heuristics from:
+https://softwareengineering.stackexchange.com/questions/127027/finding-an-a-heuristic-for-a-directed-graph
 
+A* Search
+    Makes use of a priority queue to arrange the order in which the nodes are expanded. The node with the
+    lowest cost is placed at the front of the queue and explored first. Costs are determined with different
+    heuristic models. The models I chose to use for this problem are:
+        Euclidean: measures the distance between two points in a straight line
+        Manhattan: measures the distance between two points by the sum of the absolute differences of their
+                   cartesian coordinates
+    These models will always return a value that is close to the actual cost. If we had the actual cost
+    to get to the goal state then the algorithm will always follow the shortest path and never expand. While
+    this would be nice it is near impossible to get in real world scenario.
+
+    If the heuristics are greater than the actual cost then it is not guaranteed the algorithm will return
+    the shortest path
+
+Dijkstras Algorithm
+    It is A* algorithm except the heuristic is zero for every node. Always returns the shortest path
+
+
+"""
 def aStarSearch(heuristic=manhattanHeuristic):
+    # get the start node
     start_node = getStartState()
 
+    # check if the start node is the end node
     if isGoalState(start_node):
         return []
 
+    # create a priority queue to store nodes that have been visited but not explored
     open_priority_queue = PriorityQueue()
 
+    # create a list to store nodes that have been visited and expanded
     closed_list = []
 
+    # push the start node in the queue and the cost of the node
     open_priority_queue.push((start_node, [], []), calculateHeuristic((start_node, [], []), END, heuristic))
 
-
     while True:
+        # if the queue is empty then the goal node was never found return empty path
         if open_priority_queue.isEmpty():
             return []
 
+        # pop the node to be explored from the front of the queue
         current_node, current_path, draw_path = open_priority_queue.pop()
 
+        # check if current node is the end if it is return the path and the visited nodes to be drawn
         if isGoalState(current_node):
             return draw_path, closed_list
 
+        # add the current node to the closed list (visited and explored)
         closed_list.append(current_node)
 
+        # node update the successors of the current node
         for children in getSuccessors(current_node):
             if children[0] not in closed_list:
+                # if the successor hasnt been visited yet then store it in the open priority queue
                 if (children[0] not in (frontier[2][0] for frontier in open_priority_queue.heap)):
                     new_path = current_path + [children[1]]
                     new_draw = draw_path + [children[0]]
                     new_cost = calculateHeuristic((children[0], new_path, new_draw), END , heuristic)
                     open_priority_queue.push((children[0], new_path, new_draw), new_cost)
+                # if the successor has been visited update the cost it takes to get there
                 else:
                     for frontier in open_priority_queue.heap:
+                        # find the old cost of the node in the open priority queue
                         if frontier[2][0] == children[0]:
                             old_cost = getCostOfActions(frontier[2][1])
 
                     new_path = current_path + [children[1]]
                     new_draw = draw_path + [children[0]]
                     new_cost = calculateHeuristic((children[0], new_path, new_draw), END, heuristic)
-
+                    # if the old cost is more than the new cost update the cost so it is cheaper to get there
                     if old_cost > new_cost:
                         open_priority_queue.update((children[0], new_path, new_draw), new_cost)
 
